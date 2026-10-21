@@ -48,7 +48,7 @@ func (m *machine) MacAddress() (string, error) {
 			return
 		}
 
-		m.macAddress, m.macAddressErr = selectMacAddress(interfaces, interfaceMacAddress)
+		m.macAddress, m.macAddressErr = resolveMacAddress(interfaces, interfaceMacAddress)
 	})
 
 	return m.macAddress, m.macAddressErr

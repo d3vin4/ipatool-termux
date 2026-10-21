@@ -1,23 +1,14 @@
-//go:build !ios
+//go:build !ios && !android
 
 package unicorn
 
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 )
-
-var artifactHTTPClient = &http.Client{Timeout: 2 * time.Minute}
-
-type runtimePaths struct {
-	library      string
-	dependencies []string
-}
 
 func cachedRuntimePaths(ctx context.Context) (runtimePaths, error) {
 	goos := runtime.GOOS

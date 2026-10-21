@@ -5,3 +5,7 @@
 .idea/
 **/*_mock.go
 exp/
+
+# Termux package artifacts
+*.deb
+ipatool

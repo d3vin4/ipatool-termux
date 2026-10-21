@@ -3,6 +3,7 @@ package fairplay
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 )
 
 type KeyMaterial struct {
@@ -15,7 +16,9 @@ func digest(blob []byte) string {
 	return hex.EncodeToString(value[:])
 }
 
-func ResolveLogicalKey(sinf []byte) (KeyMaterial, error) {
+// ResolveLogicalKey derives the logical key of a personalized SINF with the
+// given current SINF model pack.
+func ResolveLogicalKey(sinf []byte, pack []byte, modelName string) (KeyMaterial, error) {
 	var result KeyMaterial
 	fields, err := parseSINFFields(sinf)
 	if err != nil {
@@ -29,9 +32,12 @@ func ResolveLogicalKey(sinf []byte) (KeyMaterial, error) {
 	if err != nil {
 		return result, err
 	}
-	logical, model, err := currentSINFLogicalKey(private)
+	logical, model, err := currentSINFLogicalKey(private, pack)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf(
+			"%w [model %s sha256 %s, selector %s, priv payload %d bytes]",
+			err, modelName, digest(pack), selector.Identifier(), len(private),
+		)
 	}
 	result.LogicalKey = logical
 	result.Evidence = map[string]any{
@@ -44,8 +50,8 @@ func ResolveLogicalKey(sinf []byte) (KeyMaterial, error) {
 		"hardware_backend":       "none",
 		"runtime_hardware_calls": 0,
 		"request_selector":       selector.Identifier(),
-		"model_name":             currentSINFModelName,
-		"model_sha256":           currentSINFModelSHA256,
+		"model_name":             modelName,
+		"model_sha256":           digest(pack),
 		"fairplayd_sha256":       hex.EncodeToString(model.fairplaydHash[:]),
 		"logical_key_sha256":     digest(logical[:]),
 	}

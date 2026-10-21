@@ -42,6 +42,9 @@ type ipaInventory struct {
 type DecryptOptions struct {
 	InputPath, OutputPath, ReportPath string
 	Force                             bool
+	// ModelPath selects an external current SINF model pack. The embedded
+	// pack is used when it is empty.
+	ModelPath string
 }
 
 type DecryptResult struct {
@@ -472,7 +475,12 @@ func DecryptIPA(options DecryptOptions) (DecryptResult, error) {
 	if err != nil {
 		return result, err
 	}
-	material, err := ResolveLogicalKey(sinf)
+	pack, modelName, err := loadCurrentSINFModel(options.ModelPath)
+	if err != nil {
+		return result, err
+	}
+
+	material, err := ResolveLogicalKey(sinf, pack, modelName)
 	if err != nil {
 		return result, err
 	}
@@ -556,7 +564,6 @@ func DecryptIPA(options DecryptOptions) (DecryptResult, error) {
 	if providerName == "" {
 		providerName = "unknown"
 	}
-	modelName := currentSINFModelName
 	report := decryptionReport{
 		Schema: "ipatool-fairplay-decryption-v1", ModelBuild: modelName,
 		Input:    reportFile{Path: inventory.path, Bytes: inventory.bytes, SHA256: inventory.sha256},

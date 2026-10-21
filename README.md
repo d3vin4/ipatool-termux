@@ -1,93 +1,74 @@
-<p align="center">
-  <a href="https://GitHub.com/majd/ipatool/releases/"><img src="https://img.shields.io/github/release/majd/ipatool.svg?label=Release" alt="Release"></a>
-  <a href="https://github.com/majd/ipatool/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"></a>
-  <a href="https://github.com/sponsors/majd"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink.svg" alt="Sponsor"></a>
-</p>
+# ipatool for Android / Termux
 
-<p align="center">
-  <code>ipatool</code> is a command line tool that allows you to search for iOS, iPadOS, tvOS, watchOS, visionOS, and macOS apps on the <a href="https://apps.apple.com">App Store</a>, and download <code>.ipa</code> or macOS <code>.pkg</code> app packages.
-</p>
+Port của [ipatool](https://github.com/majd/ipatool) (tác giả: majd, fork [DrWhax/ipatool](https://github.com/DrWhax/ipatool)) chạy được trên **Android / Termux**.
 
-<p align="center">
-  <img src="./resources/demo.gif" alt="Demo">
-</p>
+Bản này dựa trên nhánh `feature/fairplay-upstream-framework` của upstream, nên có thêm lệnh **`fairplay-decrypt`** — giải mã IPA đã personalize **offline hoàn toàn**, không cần máy jailbreak, không cần credential, không cần network.
 
-## Requirements
+> Bản gốc của tác giả: [`README.upstream.md`](README.upstream.md). Phần khác biệt cho Android: [`TERMUX.md`](TERMUX.md). Hướng dẫn dùng đầy đủ: [`TERMUX-GUIDE.md`](TERMUX-GUIDE.md).
 
-- A supported operating system (macOS, Linux, Windows or iOS).
-- An Apple Account already configured to use the App Store.
-
-## Installation
-
-### Linux and Windows
-
-You can grab the latest version of `ipatool` from [GitHub releases](https://github.com/majd/ipatool/releases).
-
-### macOS
-
-You can install `ipatool` using [Homebrew](https://brew.sh).
+## Cài đặt
 
 ```shell
-$ brew install ipatool
+pkg install git
+git clone https://github.com/bbaobaob/ipatool-termux.git
+cd ipatool-termux
+CGO_ENABLED=1 go build -o ipatool .
+install -m 0755 ipatool "$PREFIX/bin/ipatool"
 ```
 
-## Usage
+`CGO_ENABLED=1` là **bắt buộc**: `purego` nạp thư viện Unicorn runtime qua `cgo` trên Android.
 
-To get started, run the following command.
-
-```text
-$ ipatool --help
-A cli tool for interacting with Apple's ipa files
-
-Usage:
-  ipatool [command]
-
-Available Commands:
-  auth                 Authenticate with the App Store
-  completion           Generate the autocompletion script for the specified shell
-  download             Download iOS, iPadOS, tvOS, watchOS, visionOS, and macOS app packages from the App Store
-  get-version-metadata Retrieves the metadata for a specific version of an app
-  help                 Help about any command
-  list-purchases       List apps owned by the authenticated App Store account
-  list-versions        List the available versions of an App Store app
-  mcp                  Serve App Store tools over MCP using stdio
-  purchase             Obtain a license for the app from the App Store
-  search               Search for iOS, iPadOS, tvOS, watchOS, visionOS, and macOS apps available on the App Store
-
-Flags:
-      --format format                sets output format for command; can be 'text', 'json' (default text)
-  -h, --help                         help for ipatool
-      --keychain-passphrase string   passphrase for unlocking keychain
-      --non-interactive              run in non-interactive session
-      --verbose                      enables verbose logs
-  -v, --version                      version for ipatool
-
-Use "ipatool [command] --help" for more information about a command.
-```
-
-**Note:** the tool runs in interactive mode by default. Use the `--non-interactive` flag
-if running in an automated environment.
-
-### FairPlay decryption
-
-`fairplay-decrypt` decrypts a personalized IPA using the embedded current-SINF
-model. It needs no device state, personal device secret, Wine, or runtime
-hardware call:
+Kiểm tra:
 
 ```shell
-ipatool fairplay-decrypt --input App.ipa
+ipatool --version
 ```
 
-Pass `--fairplay-decrypt` to `ipatool download` to decrypt immediately after
-download and SINF replication. The decoder validates the complete decrypted
-`key `/`iviv`/`tmpr`/`righ`/`name` atom geometry and fails closed when the SINF
-does not match the current model. Inputs are never overwritten; outputs and
-private reports default beside the source IPA. The decrypted analysis IPA must
-be recursively re-signed before installation.
+## Dùng nhanh
 
-### MCP tools
+```shell
+# 1. đăng nhập (hỏi Apple ID, mật khẩu, 2FA, passphrase keychain)
+ipatool auth login
 
-Run `ipatool auth login` in a terminal, then configure your MCP client to launch the stdio server:
+# 2. tìm app
+ipatool search "zalo"
+
+# 3. tải + giải mã trong một lệnh
+ipatool download -i 579523206 -o Zalo.ipa --fairplay-decrypt
+
+# hoặc tách 2 bước
+ipatool download -i 579523206 -o Zalo.ipa
+ipatool fairplay-decrypt --input Zalo.ipa
+```
+
+Kết quả: `Zalo.decrypted.ipa` + `Zalo.decrypted.json` (report private, mode `0600`).
+
+IPA đã giải mã là **IPA phân tích** — phải re-sign trước khi cài.
+
+## MCP server
+
+`ipatool mcp` chạy MCP server qua stdio, expose 6 tool: `search_apps`, `download_app`, `list_app_versions`, `get_version_metadata`, `list_purchases`, `purchase_app`.
+
+### opencode
+
+Thêm vào `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ipatool": {
+      "type": "local",
+      "command": ["ipatool", "mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+`claude_desktop_config.json`:
 
 ```json
 {
@@ -100,21 +81,67 @@ Run `ipatool auth login` in a terminal, then configure your MCP client to launch
 }
 ```
 
-## Compiling
+Cần `ipatool auth login` chạy trước trong terminal — MCP server dùng account đã lưu, và sẽ yêu cầu bạn chạy `ipatool auth login` nếu chưa đăng nhập.
 
-The tool can be compiled using the Go toolchain.
+Kiểm tra server sống:
 
 ```shell
-$ go build -o ipatool
+printf '%s\n' \
+ '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1.0"}}}' \
+ '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+ '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | ipatool mcp
 ```
 
-Unit tests can be executed with the following commands.
+## Khác biệt so với bản gốc (vì Android)
+
+| Vấn đề | Cách xử lý trong port này |
+| --- | --- |
+| Unicorn là bản manylinux → bionic không load được | Patch ELF tại chỗ (soname, symbol version, 4 alias glibc) rồi mới `dlopen` |
+| Android giấu MAC address → mọi lệnh fail | Sinh 1 địa chỉ locally-administered, lưu ở `~/.ipatool/machine-id` |
+| Upstream chặn FairPlay trên Android | Mở gate (private state nằm trong sandbox nên còn an toàn hơn) |
+| Android cấm syscall `link()` | Publish output bằng `renameat2(RENAME_NOREPLACE)` thay hardlink |
+
+Chi tiết: [`TERMUX.md`](TERMUX.md).
+
+## Giới hạn đã biết
+
+**Model SINF là theo từng đời FairPlay.** Upstream nhúng sẵn một model pack
+(`macos26-26A428-current-sinf`) — đúng với đời FairPlay mà tác giả dựng model.
+IPA được tạo ở đời khác sẽ không giải mã được, và tool **fail closed** thay vì
+xuất ra rác:
+
+```
+SINF does not match the embedded current FairPlay profile: plaintext atom 0 ("key ") is unreadable: ...
+[model macos26-26A428-current-sinf sha256 c9b7c488..., selector aea196be:00000005, priv payload 448 bytes]
+```
+
+Nếu gặp lỗi này, dùng model đúng đời:
 
 ```shell
-$ go generate ./...
-$ go test -v ./...
+ipatool fairplay-decrypt --input App.ipa --model /path/to/model.bin
+```
+
+Model pack có định dạng `FPS26A4`: magic 8 byte, version, length, `fairplayd` hash 32 byte, AES key 16 byte, whitening 16 byte, rồi 16 bảng permutation 256 byte. Tool tự kiểm tra cấu trúc; model nhúng vẫn được kiểm tra SHA-256 để chống sửa đổi.
+
+## Build từ source
+
+```shell
+git clone https://github.com/bbaobaob/ipatool-termux.git
+cd ipatool-termux
+CGO_ENABLED=1 go build -ldflags="-X github.com/majd/ipatool/v2/cmd.version=$(date +%Y.%m.%d)-termux" -o ipatool .
+install -m 0755 ipatool "$PREFIX/bin/ipatool"
+```
+
+Test:
+
+```shell
+go generate ./...
+go test ./...
 ```
 
 ## License
 
-ipatool is released under the [MIT license](https://github.com/majd/ipatool/blob/main/LICENSE).
+Port này giữ license MIT của upstream. Xem [`LICENSE`](LICENSE).
+
+Lưu ý: thư viện Unicorn (GPL) **không** được bundle vào binary — nó vẫn được
+tải về lúc chạy như upstream, nên binary vẫn thuần MIT.

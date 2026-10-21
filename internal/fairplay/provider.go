@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 type KeyMaterial struct {
@@ -14,6 +15,17 @@ type KeyMaterial struct {
 func digest(blob []byte) string {
 	value := sha256.Sum256(blob)
 	return hex.EncodeToString(value[:])
+}
+
+// describeSINFFields summarises the atom geometry of a SINF so a mismatch
+// with the embedded model can be told apart from a corrupt IPA.
+func describeSINFFields(fields []sinfAtom) string {
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		parts = append(parts, fmt.Sprintf("%s %d", field.typ, field.end-field.start))
+	}
+
+	return "{" + strings.Join(parts, ", ") + "}"
 }
 
 // ResolveLogicalKey derives the logical key of a personalized SINF with the
@@ -35,8 +47,8 @@ func ResolveLogicalKey(sinf []byte, pack []byte, modelName string) (KeyMaterial,
 	logical, model, err := currentSINFLogicalKey(private, pack)
 	if err != nil {
 		return result, fmt.Errorf(
-			"%w [model %s sha256 %s, selector %s, priv payload %d bytes]",
-			err, modelName, digest(pack), selector.Identifier(), len(private),
+			"%w [model %s sha256 %s, selector %s, SINF %s, priv payload %d bytes]",
+			err, modelName, digest(pack), selector.Identifier(), describeSINFFields(fields), len(private),
 		)
 	}
 	result.LogicalKey = logical

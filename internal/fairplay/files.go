@@ -1,7 +1,6 @@
 package fairplay
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -119,91 +118,9 @@ type publishedFile struct {
 // publishFiles provides no-replace publication and rolls back ordinary I/O
 // failures. Two separate directory entries cannot be committed crash-atomically.
 // Destinations must reside in directories controlled by the caller.
-func publishFiles(files []stagedFile, force bool) error {
-	var published []publishedFile
-	for _, file := range files {
-		item := publishedFile{stagedFile: file}
-		info, err := os.Stat(file.temporary)
-		if err != nil {
-			return errors.Join(err, rollbackFiles(published))
-		}
-		item.info = info
-		if force {
-			item.backup, err = backupDestination(file.destination)
-			if err == nil {
-				err = os.Rename(file.temporary, file.destination)
-			}
-		} else {
-			// Link atomically fails if another writer created the destination.
-			// Both names reside on the same filesystem by construction.
-			err = os.Link(file.temporary, file.destination)
-		}
-		if err != nil {
-			removeBackup(item.backup)
-			return errors.Join(fmt.Errorf("publish %s: %w", file.destination, err), rollbackFiles(published))
-		}
-		published = append(published, item)
-	}
-	for _, item := range published {
-		removeBackup(item.backup)
-	}
-	return nil
-}
-
-func backupDestination(name string) (string, error) {
-	info, err := os.Lstat(name)
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("refusing to replace non-regular destination %s", name)
-	}
-	directory, err := os.MkdirTemp(filepath.Dir(name), ".fairplay-backup-*")
-	if err != nil {
-		return "", err
-	}
-	backup := filepath.Join(directory, "previous")
-	if err := os.Link(name, backup); err != nil {
-		os.Remove(directory)
-		return "", err
-	}
-	return backup, nil
-}
-
 func removeBackup(backup string) {
 	if backup != "" {
 		os.Remove(backup)
 		os.Remove(filepath.Dir(backup))
 	}
-}
-
-func rollbackFiles(files []publishedFile) error {
-	var failures []error
-	for index := len(files) - 1; index >= 0; index-- {
-		item := files[index]
-		info, err := os.Lstat(item.destination)
-		if err == nil && !os.SameFile(info, item.info) {
-			err = fmt.Errorf("destination changed during publication")
-		} else if err == nil {
-			if item.backup != "" {
-				err = os.Rename(item.backup, item.destination)
-			} else {
-				err = os.Remove(item.destination)
-			}
-		} else if os.IsNotExist(err) {
-			err = nil
-			if item.backup != "" {
-				err = os.Link(item.backup, item.destination)
-			}
-		}
-		if err != nil {
-			failures = append(failures, fmt.Errorf("rollback %s (previous version retained at %q): %w", item.destination, item.backup, err))
-		} else {
-			removeBackup(item.backup)
-		}
-	}
-	return errors.Join(failures...)
 }

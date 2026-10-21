@@ -74,7 +74,23 @@ application sandbox, where the kernel enforces the permission bits against the
 owning application alone, so the guarantee upstream makes is at least as strong
 there.
 
-### 4. Credentials
+### 4. Hard links are unavailable
+
+Android denies the `link` syscall to unprivileged applications, in every
+directory of the application sandbox. The FairPlay pipeline publishes its
+output with a hard link so that the operation is atomic and refuses to
+overwrite an existing destination, which therefore fails on Android with
+`permission denied`.
+
+`internal/fairplay/files_publish_android.go` replaces the hard link with
+`renameat2(RENAME_NOREPLACE)`, which provides the same observable behaviour:
+the destination receives the content atomically and the call fails with
+`EEXIST` when the destination already exists. The previous file is moved
+aside instead of being linked, and it is restored when the replacement fails.
+`internal/fairplay/files_publish.go` keeps the upstream implementation for
+every other platform.
+
+### 5. Credentials
 
 `byteness/keyring` selects the file backend on Android: the Secret Service
 backend is not even registered because there is no D-Bus session bus. The

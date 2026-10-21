@@ -1,74 +1,81 @@
-# ipatool trên Termux — hướng dẫn A→Z
+# ipatool on Termux — A to Z
 
-Bản đang cài: `ipatool version 2.0.0-termux-fairplay` tại `$PREFIX/bin/ipatool`.
+Installed build: `ipatool version 2.0.0-termux-fairplay` in `$PREFIX/bin/ipatool`.
 
-Đây là bản port của nhánh `feature/fairplay-upstream-framework` — có thêm lệnh `fairplay-decrypt` và pipeline FairPlay offline.
+This is the Android port of the upstream `feature/fairplay-upstream-framework`
+branch, so it also provides the `fairplay-decrypt` command and the portable
+FairPlay pipeline.
 
-## 0. Yêu cầu trước
+## 0. Requirements
 
-| Thứ | Ghi chú |
+| Item | Note |
 | --- | --- |
-| Internet | tải Unicorn runtime (22 MB) + asset `storeagent` từ Apple, chỉ lần đầu |
-| Apple ID | bắt buộc, hỗ trợ 2FA |
-| Terminal thật | các prompt mật khẩu dùng raw mode, pipe vào sẽ lỗi `inappropriate ioctl` |
+| Internet | downloads the Unicorn runtime (22 MB) and the Apple assets on first use |
+| Apple ID | required, 2FA is supported |
+| A real terminal | the password prompts use raw mode, piping stdin fails with `inappropriate ioctl` |
 
-Kiểm tra nhanh:
+Check the install:
 
 ```shell
 ipatool --version
 ```
 
-## 1. Đăng nhập
+## 1. Sign in
 
 ```shell
 ipatool auth login
 ```
 
-Các prompt theo thứ tự:
+Four prompts, in order:
 
-1. `enter Apple ID (email address or phone number):` → email Apple
-2. `enter password:` → hiện `*` khi gõ (mật khẩu Apple ID)
-3. `enter 2FA code:` → chỉ hiện khi tài khoản bắt buộc 2FA, lấy mã 6 số từ thiết bị trusted
+1. `enter Apple ID (email address or phone number):` → your Apple ID
+2. `enter password:` → shows `*` while you type (your Apple ID password)
+3. `enter 2FA code:` → only when the account requires 2FA, take the six digit
+   code from your trusted device
 4. `enter passphrase to unlock ~/.ipatool/account (this is separate from your Apple ID password):`
-   → **passphrase riêng** để mã hóa file credential. Không phải mật khẩu Apple. Tự chọn và nhớ lại.
+   → a **separate passphrase** that encrypts the credential file. Pick one and
+   remember it.
 
-Lần đầu sẽ chậm vài phút (tải + patch Unicorn, tải asset FairPlay). Các lần sau dùng cache.
+The first run takes a few minutes: it downloads and patches the Unicorn
+runtime and fetches the Apple FairPlay assets. Later runs reuse the cache.
 
-### Không interactive (script/CI)
+### Non-interactive (scripts, CI)
 
 ```shell
 ipatool auth login \
   -e "you@icloud.com" \
-  -p "MAT_KHAU_APPLE" \
+  -p "APPLE_PASSWORD" \
   --auth-code 123456 \
-  --keychain-passphrase "PASSPHRASE_KEYCHAIN"
+  --keychain-passphrase "KEYCHAIN_PASSPHRASE"
 ```
 
-> `-p` sẽ nằm trong shell history. Chỉ dùng trong script tự động; bình thường để tool hỏi.
+> `-p` ends up in the shell history. Only use it in automation; otherwise let
+> the tool prompt.
 
-### Kiểm tra / đăng xuất
+### Check and sign out
 
 ```shell
-ipatool auth info      # xem account hiện tại
-ipatool auth revoke    # xóa credential
+ipatool auth info      # show the stored account
+ipatool auth revoke    # remove the credentials
 ```
 
-Credential lưu ở `~/.ipatool/account` (mode `0600`, mã hóa JWE PBES2-HS256 + A256GCM bằng passphrase).
+The credential lives in `~/.ipatool/account` (mode `0600`, encrypted with the
+passphrase).
 
-## 2. Tìm app
+## 2. Find an app
 
 ```shell
-ipatool search "instagram"
-ipatool search "instagram" -l 10                 # nhiều kết quả hơn
-ipatool search "instagram" --platform ipad
-ipatool search "instagram" --format json | jq '.apps[].bundleId'
+ipatool search "instagram" -l 10
 ```
 
-`search` **cần đã đăng nhập** (tool đọc account trước). Lấy `trackId` (đây là app ID) / `bundleId` / `trackName` từ kết quả.
+`search` needs a signed in account, because it reads the account first. The
+result carries `trackId` (the app ID), `bundleId` and `trackName`. For JSON:
 
-> Ở output JSON, field tên là `trackId` / `trackName` (không phải `appId` / `name`).
+```shell
+ipatool --format json search "instagram" | jq -r '.apps[] | "\(.trackId) \(.bundleId)"'
+```
 
-## 3. Xem version (tuỳ chọn)
+## 3. List versions (optional)
 
 ```shell
 ipatool list-versions -i 284882215
@@ -76,121 +83,149 @@ ipatool list-versions -b com.bundle.id
 ipatool get-version-metadata -i 284882215 --external-version-id <id>
 ```
 
-## 4. Tải app
+## 4. Download
 
 ```shell
-# cơ bản
+# basic
 ipatool download -i 284882215 -o Instagram.ipa
 
-# -o là thư mục → tool tự đặt tên <bundleID>_<appID>_<version>.ipa
+# -o may be a directory, the tool then picks <bundleID>_<appID>_<version>.ipa
 ipatool download -i 284882215 -o ~/downloads/
 
-# dùng bundle identifier (app bị gỡ khỏi store vẫn tải được nếu còn ID)
+# by bundle identifier (works for delisted apps that still have an ID)
 ipatool download -b com.bundle.id
 
-# app có phí: tự mua license nếu chưa có
+# paid app: acquire the licence first
 ipatool download -i 284882215 --purchase
 
-# bản cũ
+# an older build
 ipatool download -i 284882215 --external-version-id <id>
 
-# nền tảng khác
+# other platforms
 ipatool download -i 284882215 --platform appletv
 ipatool download -i 284882215 --platform watchos
 ipatool download -i 284882215 --platform visionos
 ipatool download -i 284882215 --platform macos
 ```
 
-Mặc định platform = iPhone + iPad.
+The default platform is iPhone and iPad.
 
-### App có phí
+### Paid apps
 
-Nếu chưa có license, lệnh báo `license is required`. Xử lý:
+Without a licence the command reports `license is required`. Then either:
 
 ```shell
-ipatool purchase -i 284882215            # mua license
-ipatool list-purchases                  # xem đã mua gì
-ipatool download -i 284882215 --purchase # tự mua luôn
+ipatool purchase -i 284882215            # buy the licence
+ipatool list-purchases                  # what the account owns
+ipatool download -i 284882215 --purchase # buy and download in one go
 ```
 
 ## 5. Decrypt
 
-### macOS — có decrypt thật, tự động
+### macOS — decrypted automatically
 
 ```shell
 ipatool download -i <macAppID> --platform macos -o App.pkg
 ```
 
-Tool tải `.pkg` đã mã hoá → emulate `storeagent` của Apple bằng Unicorn để giải mã → validate checksum từng entry XAR → xuất `.pkg` **đã giải mã**.
+The tool downloads the encrypted `.pkg`, decrypts it with the emulated Apple
+`storeagent`, validates the checksum of every XAR entry and publishes the
+decrypted package.
 
-Lưu ý: nếu app đó thực chất là app iOS chạy được trên Mac (Apple Silicon), tool tự nhận ra và dùng luồng iOS, **không** decrypt.
+Note: when the app is really an iOS app that runs on Apple silicon, the tool
+recognises it and uses the iOS path, so the package is **not** decrypted.
 
-Kiểm tra: `xar -tf App.pkg | head` (trên máy có xar), hoặc `pkgutil --check-signature App.pkg` (trên macOS).
+### iOS / iPadOS / tvOS / watchOS / visionOS — decrypted locally, offline
 
-### iOS / iPadOS / tvOS / watchOS / visionOS — CÓ decrypt local (nhánh fairplay)
-
-Nhánh `feature/fairplay-upstream-framework` bổ sung pipeline FairPlay thuần Go, **offline hoàn toàn** — không cần máy jailbreak, không cần credential, không cần network:
+The feature branch adds a pure Go FairPlay pipeline. It needs no jailbroken
+device, no credential and no network:
 
 ```shell
-# giải mã một IPA đã personalize
+# decrypt an already personalized IPA
 ipatool fairplay-decrypt --input App.ipa
-# -> App.decrypted.ipa  +  App.decrypted.json (report private, mode 0600)
+# -> App.decrypted.ipa  +  App.decrypted.json (private report, mode 0600)
 
-# hoặc tải xong giải mã luôn
+# or download and decrypt in one command
 ipatool download -i 284882215 -o App.ipa --fairplay-decrypt
 ```
 
-Flag: `--input` (bắt buộc), `--output`, `--report`, `--force`.
+Flags: `--input` (required), `--output`, `--report`, `--force`, `--model`.
 
-Cơ chế: dùng model SINF hiện tại nhúng sẵn trong binary, không mở phiên giải mã nào, không gọi hardware. Nó **fail closed** nếu SINF của IPA không khớp model.
+How it works: the embedded current-SINF model is used to derive the logical
+key, no decryption session is opened and no hardware call is made. It **fails
+closed** when the SINF does not match the model.
 
-Ràng buộc quan trọng:
+Important constraints:
 
-- Input phải là **personalized IPA** — tức IPA tải bằng chính account của bạn (dùng `ipatool download` với account đó), nếu không SINF sẽ không khớp.
-- **"The decrypted analysis IPA must be recursively re-signed before installation."** — output là IPA để phân tích, cần re-sign trước khi cài.
-- Report `.json` là private state (mode 0600), chứa thông tin nhạy cảm về key — đừng upload.
+* The input has to be a **personalized IPA**, meaning one that was downloaded
+  with the very same account. A SINF from another account does not match.
+* **"The decrypted analysis IPA must be recursively re-signed before
+  installation."** The output is an analysis IPA and has to be re-signed.
+* The `.json` report is private state (mode `0600`) and contains key material.
+  Do not upload it.
 
-Trên Android, tool bảo vệ thêm: `checkPlatform()` chỉ cho phép macOS/Linux ở upstream. Bản port này mở gate cho Android (xem `TERMUX.md` §3).
+On Android, upstream gates the pipeline to macOS and Linux. This port opens the
+gate, see [`TERMUX.md`](TERMUX.md) section 3.
 
-### Kiểm tra kết quả giải mã
+### Verify the result
 
-File report `.json` là nguồn sự thật:
+The report is the source of truth:
 
 ```shell
-jq '{complete, warnings, encrypted_image_count, decrypted_page_count,
+jq '{complete, warnings, pages: .decrypted_page_count,
      cryptid: [.images[] | {m: .member, before: .cryptid_before, after: .cryptid_after}],
      plausible: [.images[] | .first_page_structurally_plausible]}' App.decrypted.json
 ```
 
-Cần thấy:
-- `"complete": true`
-- `"cryptid_after": 0` (trước đó là 1)
-- `"warnings": []` hoặc rỗng
-- `first_page_structurally_plausible: true` → page đã giải mã ra code arm64 hợp lệ, không phải rác
+What you want to see:
 
-`plaintext_verified` và `signature_verified` **luôn là false** — tool không verify chữ ký, nên IPA đã giải mã phải được re-sign trước khi cài.
+* `"complete": true`
+* `"cryptid_after": 0` (it was 1 before)
+* `"warnings": []` or empty
+* `first_page_structurally_plausible: true`, which means the page decrypts to
+  plausible ARM64 code instead of noise
 
-### Các tool khác (nếu bạn không dùng nhánh này)
+`plaintext_verified` and `signature_verified` are **always false**: the tool
+does not verify a signature, so the IPA has to be re-signed before it can be
+installed.
 
-| Tool | CLI | Ghi chú |
+### When the model does not match
+
+```
+SINF does not match the embedded current FairPlay profile: plaintext atom 0 ("key ") is unreadable: ...
+[model macos26-26A428-current-sinf sha256 c9b7c488..., selector aea196be:00000005,
+ SINF {user 4, key 4, iviv 16, righ 88, name 256, priv 448}, priv payload 448 bytes]
+```
+
+The embedded model covers one FairPlay generation while the tool ships
+macOS 27 assets, so a current SINF does not decode. Supply a matching model:
+
+```shell
+ipatool fairplay-decrypt --input App.ipa --model /path/to/model.bin
+```
+
+### Other tools (when not using this branch)
+
+| Tool | CLI | Note |
 | --- | --- | --- |
-| [EthanArbuckle/fairplay-decrypt](https://github.com/EthanArbuckle/fairplay-decrypt) | `python decrypt.py <in.ipa> <out.ipa> --credential credential.bin` | Cần credential 16 byte lấy từ iPhone jailbreak. Không hỗ trợ license iOS 26+ |
-| [londek/ipadecrypt](https://github.com/londek/ipadecrypt) | `ipadecrypt decrypt <bundle-id\|path-to-local-ipa>` | Điều khiển iPhone jailbreak qua SSH. Xử lý được iOS 26 |
+| [EthanArbuckle/fairplay-decrypt](https://github.com/EthanArbuckle/fairplay-decrypt) | `python decrypt.py <in.ipa> <out.ipa> --credential credential.bin` | Needs a 16 byte credential taken from a jailbroken iPhone. Does not support the iOS 26+ license format |
+| [londek/ipadecrypt](https://github.com/londek/ipadecrypt) | `ipadecrypt decrypt <bundle-id\|path-to-local-ipa>` | Drives a jailbroken iPhone over SSH. Handles iOS 26 |
 
-## 6. Xử lý sự cố
+## 6. Troubleshooting
 
-| Triệu chứng | Nguyên nhân / cách sửa |
+| Symptom | Fix |
 | --- | --- |
-| `could not be found in the keyring` | chưa login, hoặc sai passphrase keychain |
-| `keychain passphrase is required when not running in interactive mode` | thiếu `--keychain-passphrase` |
-| `license is required` | app có phí → `--purchase` hoặc `ipatool purchase` |
-| `2FA code is required` | chạy lại với `--auth-code` |
-| `password token expired` | tool tự login lại bằng password đã lưu; nếu fail thì `ipatool auth login` lại |
-| Download lỗi bất thường | `ipatool <lệnh> --verbose` |
-| Keychain hỏng / sai passphrase | `rm ~/.ipatool/account` rồi `ipatool auth login` (**giữ `machine-id`**) |
-| `inappropriate ioctl for device` khi hỏi mật khẩu | đừng pipe stdin; chạy trực tiếp trong terminal |
+| `could not be found in the keyring` | not signed in, or the keychain passphrase is wrong |
+| `keychain passphrase is required when not running in interactive mode` | pass `--keychain-passphrase` |
+| `license is required` | add `--purchase` |
+| `2FA code is required` | run the command again with `--auth-code` |
+| `password token expired` | the tool signs in again with the stored password; run `ipatool auth login` if that fails |
+| `SINF does not match the embedded current FairPlay profile` | the IPA is from another FairPlay generation, see the model section |
+| `FairPlay decryption is supported only on macOS...` | an old binary is installed, reinstall the package |
+| `inappropriate ioctl for device` at a password prompt | do not pipe stdin, run it in a terminal |
+| Odd download failures | add `--verbose` |
 
-## 7. Script hoá
+## 7. Scripting
 
 ```shell
 ipatool --format json --non-interactive auth login \
@@ -201,27 +236,28 @@ ipatool --format json --non-interactive search "app name" \
   --keychain-passphrase "$KPASS" | jq -r '.apps[] | "\(.trackId) \(.bundleId)"'
 
 ipatool --non-interactive download -i "$APP_ID" -o out.ipa \
-  --keychain-passphrase "$KPASS"
+  --fairplay-decrypt --keychain-passphrase "$KPASS"
 ```
 
-Nhớ: `--non-interactive` yêu cầu `--keychain-passphrase` cho mọi lệnh đọc credential.
+`--non-interactive` requires `--keychain-passphrase` for every command that
+reads the credential.
 
-## 8. Vòng đời tổng quát
+## 8. The whole flow
 
 ```
 ipatool auth login
-      │  (Apple ID + 2FA + passphrase keychain)
+      │  (Apple ID + 2FA + keychain passphrase)
       ▼
 ~/.ipatool/account  ──┐
                       │
-ipatool search        │  đọc account
-ipatool download      │  đọc account
+ipatool search        │  reads the account
+ipatool download      │  reads the account
       │               │
       ▼               ▼
-  KBSync (Unicorn)  ticket từ ent/download
+  KBSync (Unicorn)  ticket from ent/download
       │               │
       └───────┬───────┘
               ▼
       Apple CDN  ──►  .ipa  ──► fairplay-decrypt ──► .decrypted.ipa
-                    .pkg  (đã decrypt sẵn, chỉ macOS)
+                    .pkg  (decrypted already, macOS only)
 ```

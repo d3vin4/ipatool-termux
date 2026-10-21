@@ -18,6 +18,21 @@ install -m 0755 ipatool "$PREFIX/bin/ipatool"
 `CGO_ENABLED=1` is required: `purego` loads the Unicorn runtime library through
 `cgo` on Android.
 
+To produce the package instead:
+
+```shell
+CGO_ENABLED=1 go build -o ipatool .
+./tools/build-deb.sh
+```
+
+The payload paths are relative to the Termux prefix, so the package installs
+`ipatool` into `$PREFIX/bin`. The Termux `dpkg` has to use the prefix as its
+installation root:
+
+```shell
+dpkg --root="$PREFIX" -i ipatool-termux_*.deb
+```
+
 ## What the port changes
 
 ### 1. Unicorn runtime library
@@ -74,6 +89,10 @@ application sandbox, where the kernel enforces the permission bits against the
 owning application alone, so the guarantee upstream makes is at least as strong
 there.
 
+A model pack can also be supplied with `--model`, which lets a model for a
+different FairPlay generation be used without rebuilding. The embedded pack
+keeps its SHA-256 check, an external pack is validated for structure.
+
 ### 4. Hard links are unavailable
 
 Android denies the `link` syscall to unprivileged applications, in every
@@ -112,4 +131,4 @@ IPATOOL_UNICORN_EMULATION=1 go test ./internal/sap/unicorn/ -run TestEngineEmula
 ```
 
 The second one downloads the runtime library, patches it, loads it and executes
-a small x86-64 program through the engine.
+a small ARM64 program through the engine.

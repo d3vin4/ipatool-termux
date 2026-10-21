@@ -10,7 +10,7 @@ Bản này dựa trên nhánh `feature/fairplay-upstream-framework` của upstre
 
 ```shell
 pkg install git
-git clone https://github.com/bbaobaob/ipatool-termux.git
+git clone https://github.com/d3vin4/ipatool-termux.git
 cd ipatool-termux
 CGO_ENABLED=1 go build -o ipatool .
 install -m 0755 ipatool "$PREFIX/bin/ipatool"
@@ -126,7 +126,7 @@ Model pack có định dạng `FPS26A4`: magic 8 byte, version, length, `fairpla
 ## Build từ source
 
 ```shell
-git clone https://github.com/bbaobaob/ipatool-termux.git
+git clone https://github.com/d3vin4/ipatool-termux.git
 cd ipatool-termux
 CGO_ENABLED=1 go build -ldflags="-X github.com/majd/ipatool/v2/cmd.version=$(date +%Y.%m.%d)-termux" -o ipatool .
 install -m 0755 ipatool "$PREFIX/bin/ipatool"

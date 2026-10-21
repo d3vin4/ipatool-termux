@@ -9,11 +9,17 @@ import (
 	"strings"
 )
 
+// checkPlatform restricts the FairPlay pipeline to the platforms whose file
+// semantics the private state guarantees rely on. Android is included because
+// the private state lives inside the application sandbox, where the kernel
+// enforces the 0600 and 0700 modes against the owning application alone.
 func checkPlatform() error {
-	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
-		return fmt.Errorf("FairPlay decryption is supported only on macOS and Linux; private-state permission validation is unavailable on %s", runtime.GOOS)
+	switch runtime.GOOS {
+	case "darwin", "linux", "android":
+		return nil
+	default:
+		return fmt.Errorf("FairPlay decryption is supported only on macOS, Linux and Android; private-state permission validation is unavailable on %s", runtime.GOOS)
 	}
-	return nil
 }
 
 // canonicalPath resolves existing ancestors even when the final path is new.

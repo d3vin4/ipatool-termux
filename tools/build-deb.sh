@@ -34,7 +34,7 @@ Architecture: $ARCH
 Installed-Size: $INSTALLED_SIZE
 Section: utils
 Priority: optional
-Maintainer: Bao <d3vin4@users.noreply.github.com>
+Maintainer: Bao <baoamai6@gmail.com>
 Homepage: https://github.com/d3vin4/ipatool-termux
 Description: ipatool for Android/Termux
  Search the App Store, download app packages and decrypt personalized IPAs

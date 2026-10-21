@@ -1,6 +1,8 @@
 # ipatool trên Termux — hướng dẫn A→Z
 
-Bản đang cài: `ipatool version 2.0.0-termux` tại `$PREFIX/bin/ipatool`.
+Bản đang cài: `ipatool version 2.0.0-termux-fairplay` tại `$PREFIX/bin/ipatool`.
+
+Đây là bản port của nhánh `feature/fairplay-upstream-framework` — có thêm lệnh `fairplay-decrypt` và pipeline FairPlay offline.
 
 ## 0. Yêu cầu trước
 
@@ -149,6 +151,24 @@ Ràng buộc quan trọng:
 - Report `.json` là private state (mode 0600), chứa thông tin nhạy cảm về key — đừng upload.
 
 Trên Android, tool bảo vệ thêm: `checkPlatform()` chỉ cho phép macOS/Linux ở upstream. Bản port này mở gate cho Android (xem `TERMUX.md` §3).
+
+### Kiểm tra kết quả giải mã
+
+File report `.json` là nguồn sự thật:
+
+```shell
+jq '{complete, warnings, encrypted_image_count, decrypted_page_count,
+     cryptid: [.images[] | {m: .member, before: .cryptid_before, after: .cryptid_after}],
+     plausible: [.images[] | .first_page_structurally_plausible]}' App.decrypted.json
+```
+
+Cần thấy:
+- `"complete": true`
+- `"cryptid_after": 0` (trước đó là 1)
+- `"warnings": []` hoặc rỗng
+- `first_page_structurally_plausible: true` → page đã giải mã ra code arm64 hợp lệ, không phải rác
+
+`plaintext_verified` và `signature_verified` **luôn là false** — tool không verify chữ ký, nên IPA đã giải mã phải được re-sign trước khi cài.
 
 ### Các tool khác (nếu bạn không dùng nhánh này)
 

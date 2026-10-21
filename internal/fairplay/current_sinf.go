@@ -26,13 +26,19 @@ type currentSINFModel struct {
 	inputDecode   [16 * 256]byte
 }
 
-func parseCurrentSINFModel(pack []byte) (currentSINFModel, error) {
+// parseCurrentSINFModel validates a model pack. When expectedSHA is not
+// empty the pack has to match that digest, which keeps a known model
+// tamper-evident.
+func parseCurrentSINFModel(pack []byte, expectedSHA string) (currentSINFModel, error) {
 	var model currentSINFModel
 	if len(pack) != currentSINFModelBytes || string(pack[:8]) != "FPS26A4\x00" ||
 		binary.LittleEndian.Uint32(pack[8:12]) != 1 ||
-		binary.LittleEndian.Uint32(pack[12:16]) != uint32(len(pack)) ||
-		digest(pack) != currentSINFModelSHA256 {
-		return model, fmt.Errorf("invalid embedded current SINF model")
+		binary.LittleEndian.Uint32(pack[12:16]) != uint32(len(pack)) {
+		return model, fmt.Errorf("invalid current SINF model")
+	}
+
+	if expectedSHA != "" && digest(pack) != expectedSHA {
+		return model, fmt.Errorf("current SINF model digest is %s, want %s", digest(pack), expectedSHA)
 	}
 	copy(model.fairplaydHash[:], pack[16:48])
 	copy(model.key[:], pack[48:64])
@@ -105,7 +111,10 @@ func currentSINFPrivateKey(model currentSINFModel, source []byte) ([16]byte, err
 	for index, expected := range expectedAtoms {
 		atom, parseErr := parseClearAtom(plaintext, cursor, len(plaintext))
 		if parseErr != nil {
-			return innerKey, fmt.Errorf("%w: plaintext atom %d: %v", errCurrentSINFProfileMismatch, index, parseErr)
+			return innerKey, fmt.Errorf(
+				"%w: plaintext atom %d (%q) is unreadable: %v; the model decoded %d plaintext bytes but the SINF expects %s",
+				errCurrentSINFProfileMismatch, index, expected.typ, parseErr, len(plaintext), expectedLayout(),
+			)
 		}
 		validSize := false
 		for _, size := range expected.sizes {
@@ -125,9 +134,15 @@ func currentSINFPrivateKey(model currentSINFModel, source []byte) ([16]byte, err
 	return innerKey, nil
 }
 
-func currentSINFLogicalKey(source []byte) ([16]byte, currentSINFModel, error) {
+// expectedLayout describes the plaintext atom geometry the current model
+// expects, so a mismatch reports what was looked for.
+func expectedLayout() string {
+	return "key 24, iviv 24, tmpr 24, righ 88 or 96, name 264"
+}
+
+func currentSINFLogicalKey(source, pack []byte) ([16]byte, currentSINFModel, error) {
 	var zero [16]byte
-	model, err := parseCurrentSINFModel(currentSINFModelPack)
+	model, err := parseCurrentSINFModel(pack, "")
 	if err != nil {
 		return zero, currentSINFModel{}, err
 	}

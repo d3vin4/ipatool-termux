@@ -15,6 +15,7 @@ type fairplayDecryptOptions struct {
 	Output string
 	Report string
 	Force  bool
+	Model  string
 }
 
 func fairplayDecryptCmd() *cobra.Command {
@@ -36,6 +37,7 @@ func fairplayDecryptCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&options.Input, "input", "", "Personalized encrypted IPA")
+	cmd.Flags().StringVar(&options.Model, "model", "", "Path to a current SINF model pack (defaults to the embedded model)")
 	options.addFlags(cmd, "")
 	return cmd
 }
@@ -78,5 +80,6 @@ func runFairplayDecrypt(ctx context.Context, options fairplayDecryptOptions) (fa
 		OutputPath: options.Output,
 		ReportPath: options.Report,
 		Force:      options.Force,
+		ModelPath:  options.Model,
 	})
 }

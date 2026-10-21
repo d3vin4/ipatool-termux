@@ -27,7 +27,7 @@ func testAtom(typ string, payload []byte) []byte {
 
 func syntheticCurrentSINFFixture(t *testing.T, user, key uint32, righBytes int, innerKey [16]byte) syntheticSINFFixture {
 	t.Helper()
-	model, err := parseCurrentSINFModel(currentSINFModelPack)
+	model, err := parseCurrentSINFModel(currentSINFModelPack, currentSINFModelSHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func syntheticCurrentSINFFixture(t *testing.T, user, key uint32, righBytes int, 
 }
 
 func TestCurrentSINFModelSyntheticRoundTrip(t *testing.T) {
-	model, err := parseCurrentSINFModel(currentSINFModelPack)
+	model, err := parseCurrentSINFModel(currentSINFModelPack, currentSINFModelSHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestCurrentSINFModelSyntheticRoundTrip(t *testing.T) {
 	if observed != innerKey {
 		t.Fatalf("inner key changed: %x", observed)
 	}
-	gotLogical, _, err := currentSINFLogicalKey(fixture.private)
+	gotLogical, _, err := currentSINFLogicalKey(fixture.private, currentSINFModelPack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestCurrentSINFModelSyntheticRoundTrip(t *testing.T) {
 }
 
 func TestCurrentSINFModelValidation(t *testing.T) {
-	model, err := parseCurrentSINFModel(currentSINFModelPack)
+	model, err := parseCurrentSINFModel(currentSINFModelPack, currentSINFModelSHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestCurrentSINFModelValidation(t *testing.T) {
 	for _, offset := range []int{0, 8, 12, 16, 48, 64, 80, len(currentSINFModelPack) - 1} {
 		mutated := append([]byte(nil), currentSINFModelPack...)
 		mutated[offset] ^= 1
-		if _, err := parseCurrentSINFModel(mutated); err == nil {
+		if _, err := parseCurrentSINFModel(mutated, currentSINFModelSHA256); err == nil {
 			t.Fatalf("model corruption at %#x was accepted", offset)
 		}
 	}
@@ -138,7 +138,7 @@ func TestCurrentSINFPortableFixtures(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			input := syntheticCurrentSINFFixture(t, fixture.user, fixture.key, fixture.righBytes, fixture.innerKey)
-			material, resolveErr := ResolveLogicalKey(input.sinf)
+			material, resolveErr := ResolveLogicalKey(input.sinf, currentSINFModelPack, currentSINFModelName)
 			if resolveErr != nil {
 				t.Fatal(resolveErr)
 			}
@@ -166,7 +166,7 @@ func TestCurrentSINFRejectsMutation(t *testing.T) {
 	}
 	private = append([]byte(nil), private...)
 	private[31] ^= 1
-	_, _, err = currentSINFLogicalKey(private)
+	_, _, err = currentSINFLogicalKey(private, currentSINFModelPack)
 	if !errors.Is(err, errCurrentSINFProfileMismatch) {
 		t.Fatalf("mutated current SINF returned %v", err)
 	}

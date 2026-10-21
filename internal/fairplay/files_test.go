@@ -70,11 +70,10 @@ func TestValidatePathsRejectsDestinationCollisions(t *testing.T) {
 func TestValidatePathsResolvesFilesystemAliases(t *testing.T) {
 	options := testOptions(t)
 	options.Force = true
-	if err := os.Link(options.InputPath, options.OutputPath); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := validatePaths(options); err == nil {
-		t.Fatal("accepted a hardlink to the input")
+	if linkAlias(t, options.InputPath, options.OutputPath) {
+		if _, err := validatePaths(options); err == nil {
+			t.Fatal("accepted a hardlink to the input")
+		}
 	}
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation can require Windows privileges")

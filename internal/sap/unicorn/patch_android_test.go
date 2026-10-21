@@ -4,6 +4,7 @@ package unicorn
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -79,8 +80,9 @@ func TestEngineEmulation(t *testing.T) {
 		t.Fatalf("map memory: %v", err)
 	}
 
-	// mov rax, 42 ; ret  (the engine emulates x86-64)
-	code := []byte{0x48, 0xC7, 0xC0, 0x2A, 0x00, 0x00, 0x00, 0xC3}
+	// mov x0, #42  (the engine emulates arm64)
+	code := make([]byte, 4)
+	binary.LittleEndian.PutUint32(code, 0xd2800A80)
 
 	if err := engine.MemWrite(base, code); err != nil {
 		t.Fatalf("write code: %v", err)
@@ -90,7 +92,7 @@ func TestEngineEmulation(t *testing.T) {
 		t.Fatalf("emulate: %v", err)
 	}
 
-	value, err := engine.RegRead(RegRAX)
+	value, err := engine.RegRead(RegX0)
 	if err != nil {
 		t.Fatalf("read register: %v", err)
 	}

@@ -1,7 +1,12 @@
 # Running ipatool on Android / Termux
 
 This tree is upstream `ipatool` (module `github.com/majd/ipatool/v2`, cloned from
-https://github.com/DrWhax/ipatool.git) with an Android port layered on top.
+https://github.com/DrWhax/ipatool.git) on the branch
+`feature/fairplay-upstream-framework`, with an Android port layered on top.
+
+The feature branch is what makes the tool interesting on a phone: it replaces
+the Unicorn based Apple service emulation with a portable, pure Go store
+emulator and adds a self contained FairPlay decryption pipeline.
 
 ## Build
 
@@ -15,12 +20,11 @@ install -m 0755 ipatool "$PREFIX/bin/ipatool"
 
 ## What the port changes
 
-### 1. Unicorn runtime library (the hard part)
+### 1. Unicorn runtime library
 
-`ipatool auth login` signs its requests with Apple's SAP signer, which emulates
-the `storeagent` binary with the Unicorn CPU emulator. Upstream downloads a
-prebuilt `libunicorn.so.2` and `dlopen`s it. The published artifacts are
-manylinux builds, and bionic refuses them:
+The KBSync ticket used for downloads is still produced by the emulated Apple
+`storeagent`, which needs the native Unicorn library. The published artifacts
+are manylinux builds, and bionic refuses them:
 
 * `DT_NEEDED` names glibc sonames (`libc.so.6`, `libm.so.6`, `libpthread.so.0`)
 * the library demands `GLIBC_2.17` symbol versions
@@ -57,7 +61,20 @@ usable address is exposed and otherwise falls back to a locally administered
 address that is generated once and stored in the state directory
 (`~/.ipatool/machine-id`), so the identity stays stable across runs.
 
-### 3. Credentials
+### 3. FairPlay decryption on Android
+
+Upstream gates the FairPlay pipeline to macOS and Linux
+(`internal/fairplay/files.go`, `checkPlatform`). The gate is a support policy
+rather than a technical limit: the pipeline itself is pure Go, and the file
+handling it relies on (`os.Link`, `0700` directories, `0600` private reports)
+works unchanged on Android.
+
+This port extends the gate to Android. The private state lives inside the
+application sandbox, where the kernel enforces the permission bits against the
+owning application alone, so the guarantee upstream makes is at least as strong
+there.
+
+### 4. Credentials
 
 `byteness/keyring` selects the file backend on Android: the Secret Service
 backend is not even registered because there is no D-Bus session bus. The
@@ -68,7 +85,7 @@ with `--keychain-passphrase` in non-interactive runs.
 
 ```shell
 go generate ./...
-go test ./pkg/util/machine/... ./internal/sap/unicorn/...
+go test ./pkg/util/machine/... ./internal/sap/unicorn/... ./internal/fairplay/...
 ```
 
 Two extra tests are skipped unless their fixtures are provided:
